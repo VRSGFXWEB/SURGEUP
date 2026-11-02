@@ -1,0 +1,81 @@
+
+name: Extract SurgeUp Directly
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'SurgeUp.zip'
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Unzip and Rsync
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip rsync
+
+      - name: Check ZIP
+        run: |
+          if [ ! -f "SurgeUp.zip" ]; then
+            echo "SurgeUp.zip tidak ditemukan!"
+            exit 1
+          fi
+
+      - name: Extract Project Directly
+        run: |
+          mkdir -p temp_extract
+          unzip -o "SurgeUp.zip" -d temp_extract
+
+          PROJECT=$(find temp_extract -type f -name "settings.gradle.kts" -print -quit)
+
+          if [ -z "$PROJECT" ]; then
+            echo "settings.gradle.kts tidak ditemukan!"
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$PROJECT")
+
+          echo "Project ditemukan: $PROJECT_DIR"
+
+          rsync -a --exclude='.github/' "$PROJECT_DIR/" ./
+
+          rm -rf temp_extract SURGEUP
+
+          echo "HASIL EXTRACT:"
+          ls -la
+          
+      - name: Verify Project
+        run: |
+          if [ ! -f "settings.gradle.kts" ]; then
+            echo "Project gagal diextract!"
+            exit 1
+          fi
+
+          echo "Extract berhasil!"
+
+      - name: Commit to GitHub
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          git reset -- "SurgeUp.zip"
+
+          if git diff --cached --quiet; then
+            echo "Tidak ada perubahan."
+          else
+            git commit -m "Extract SurgeUp directly to repository"
+            git push
+          fi
